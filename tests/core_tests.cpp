@@ -1,6 +1,7 @@
 #include <cassert>
 
 #include <eaglegraphics/core/graphics.h>
+#include <eaglegraphics/core/color.h>
 
 using namespace eaglegraphics;
 
@@ -31,6 +32,45 @@ int main()
     assert(info.api_major == 0);
     assert(info.api_minor == 1);
     assert(info.api_patch == 0);
+
+    Color default_color;
+
+    assert(default_color.r == 0);
+    assert(default_color.g == 0);
+    assert(default_color.b == 0);
+    assert(default_color.a == 255);
+
+    Color red(255, 0, 0);
+
+    assert(red.r == 255);
+    assert(red.g == 0);
+    assert(red.b == 0);
+    assert(red.a == 255);
+    assert(red.is_opaque());
+    assert(!red.is_transparent());
+
+    Color transparent_blue(0, 0, 255, 0);
+
+    assert(transparent_blue.is_transparent());
+    assert(!transparent_blue.is_opaque());
+
+    Color translucent_green(0, 255, 0, 128);
+
+    assert(translucent_green.a == 128);
+    assert(!translucent_green.is_opaque());
+    assert(!translucent_green.is_transparent());
+
+    Color modified_color = red.with_alpha(128);
+
+    assert(modified_color.r == 255);
+    assert(modified_color.g == 0);
+    assert(modified_color.b == 0);
+    assert(modified_color.a == 128);
+
+    assert(red.a == 255);
+
+    assert(red == Color(255, 0, 0));
+    assert(red != transparent_blue);
 
     return 0;
 }
