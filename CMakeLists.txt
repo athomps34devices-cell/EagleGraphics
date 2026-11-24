@@ -8,6 +8,7 @@ project(EagleGraphics
 
 add_library(eaglegraphics STATIC
     src/version.cpp
+    src/core/graphics.cpp
 )
 
 add_library(EagleGraphics::EagleGraphics ALIAS eaglegraphics)
@@ -31,5 +32,22 @@ else()
         -Wall
         -Wextra
         -Wpedantic
+    )
+endif()
+
+include(CTest)
+
+if(BUILD_TESTING)
+    add_executable(eaglegraphics_tests
+        tests/core_tests.cpp
+    )
+
+    target_link_libraries(eaglegraphics_tests
+        PRIVATE EagleGraphics::EagleGraphics
+    )
+
+    add_test(
+        NAME EagleGraphicsCoreTests
+        COMMAND eaglegraphics_tests
     )
 endif()
