@@ -8,6 +8,7 @@
                 "${workspaceFolder}/include/eaglegraphics/core",
                 "${workspaceFolder}/include/eaglegraphics/rendering",
                 "${workspaceFolder}/include/eaglegraphics/platform",
+                "${workspaceFolder}/include/eaglegraphics/platform/windows",
                 "${workspaceFolder}/src/**"
             ],
             "defines": [

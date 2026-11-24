@@ -35,6 +35,17 @@ else()
     )
 endif()
 
+if(WIN32)
+    target_sources(eaglegraphics PRIVATE
+        src/platform/windows/windows_renderer.cpp
+    )
+
+    target_link_libraries(eaglegraphics PRIVATE
+        user32
+        gdi32
+    )
+endif()
+
 include(CTest)
 
 if(BUILD_TESTING)
@@ -49,5 +60,17 @@ if(BUILD_TESTING)
     add_test(
         NAME EagleGraphicsCoreTests
         COMMAND eaglegraphics_tests
+    )
+endif()
+if(WIN32 AND BUILD_TESTING)
+    add_executable(eaglegraphics_windows_demo WIN32
+        tests/windows_renderer_demo.cpp
+    )
+
+    target_link_libraries(eaglegraphics_windows_demo
+        PRIVATE
+            EagleGraphics::EagleGraphics
+            user32
+            gdi32
     )
 endif()
