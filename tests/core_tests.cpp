@@ -2,8 +2,50 @@
 
 #include <eaglegraphics/core/graphics.h>
 #include <eaglegraphics/core/color.h>
+#include <eaglegraphics/rendering/renderer.h>
 
 using namespace eaglegraphics;
+
+class TestRenderer : public Renderer
+{
+public:
+    int clear_calls = 0;
+    int pixel_calls = 0;
+    int line_calls = 0;
+    int rectangle_calls = 0;
+    int fill_calls = 0;
+    int present_calls = 0;
+
+    void clear(const Color&) override
+    {
+        clear_calls++;
+    }
+
+    void draw_pixel(const Point&, const Color&) override
+    {
+        pixel_calls++;
+    }
+
+    void draw_line(const Point&, const Point&, const Color&) override
+    {
+        line_calls++;
+    }
+
+    void draw_rectangle(const Rectangle&, const Color&) override
+    {
+        rectangle_calls++;
+    }
+
+    void fill_rectangle(const Rectangle&, const Color&) override
+    {
+        fill_calls++;
+    }
+
+    void present() override
+    {
+        present_calls++;
+    }
+};
 
 int main()
 {
@@ -71,6 +113,22 @@ int main()
 
     assert(red == Color(255, 0, 0));
     assert(red != transparent_blue);
+
+    TestRenderer renderer;
+
+    renderer.clear(Color(0, 0, 0));
+    renderer.draw_pixel(Point(10, 10), Color(255, 0, 0));
+    renderer.draw_line(Point(0, 0), Point(100, 100), Color(0, 255, 0));
+    renderer.draw_rectangle(Rectangle(10, 10, 50, 50), Color(0, 0, 255));
+    renderer.fill_rectangle(Rectangle(20, 20, 30, 30), Color(255, 255, 0));
+    renderer.present();
+
+    assert(renderer.clear_calls == 1);
+    assert(renderer.pixel_calls == 1);
+    assert(renderer.line_calls == 1);
+    assert(renderer.rectangle_calls == 1);
+    assert(renderer.fill_calls == 1);
+    assert(renderer.present_calls == 1);
 
     return 0;
 }

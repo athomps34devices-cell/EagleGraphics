@@ -3,7 +3,10 @@
         {
             "name": "EagleGraphics",
             "includePath": [
-                "${workspaceFolder}/include/**",
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/include/eaglegraphics",
+                "${workspaceFolder}/include/eaglegraphics/core",
+                "${workspaceFolder}/include/eaglegraphics/rendering",
                 "${workspaceFolder}/src/**"
             ],
             "defines": [
