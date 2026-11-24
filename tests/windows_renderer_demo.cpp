@@ -39,29 +39,72 @@ namespace
                 renderer->clear(Color(18, 22, 35));
 
                 renderer->fill_rectangle(
-                    eaglegraphics::Rectangle(Point(40, 40), Size(180, 100)),
+                    eaglegraphics::Rectangle(Point(30, 30), Size(130, 80)),
                     Color(139, 92, 246)
                 );
 
                 renderer->draw_rectangle(
-                    eaglegraphics::Rectangle(Point(260, 40), Size(180, 100)),
+                    eaglegraphics::Rectangle(Point(190, 30), Size(130, 80)),
                     Color(0, 200, 255)
                 );
 
                 renderer->draw_line(
-                    Point(40, 200),
-                    Point(440, 200),
+                    Point(30, 140),
+                    Point(450, 140),
                     Color(255, 255, 255)
                 );
 
                 renderer->draw_pixel(
-                    Point(240, 260),
+                    Point(240, 170),
                     Color(255, 80, 80)
                 );
 
-                renderer->fill_rectangle(
-                    eaglegraphics::Rectangle(Point(40, 240), Size(100, 70)),
+                renderer->fill_ellipse(
+                    eaglegraphics::Rectangle(Point(30, 180), Size(100, 65)),
                     Color(40, 200, 120)
+                );
+
+                renderer->draw_ellipse(
+                    eaglegraphics::Rectangle(Point(160, 180), Size(100, 65)),
+                    Color(255, 200, 50)
+                );
+
+                renderer->fill_circle(
+                    Point(340, 215),
+                    35.0f,
+                    Color(255, 80, 120)
+                );
+
+                renderer->draw_circle(
+                    Point(440, 215),
+                    35.0f,
+                    Color(0, 200, 255)
+                );
+
+                const Point triangle[] =
+                {
+                    Point(30, 290),
+                    Point(100, 240),
+                    Point(170, 290)
+                };
+
+                renderer->fill_polygon(
+                    triangle,
+                    Color(139, 92, 246)
+                );
+
+                const Point polygon[] =
+                {
+                    Point(230, 245),
+                    Point(290, 245),
+                    Point(320, 285),
+                    Point(260, 315),
+                    Point(210, 285)
+                };
+
+                renderer->draw_polygon(
+                    polygon,
+                    Color(255, 255, 255)
                 );
 
                 renderer->present();
@@ -100,19 +143,17 @@ int WINAPI WinMain(
     );
 
     if (!RegisterClassW(&window_class))
-    {
         return 1;
-    }
 
     HWND window = CreateWindowExW(
         0,
         WINDOW_CLASS_NAME,
-        L"EagleGraphics - Windows Rendering Demo",
+        L"EagleGraphics - Drawing Primitives Demo",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         540,
-        380,
+        400,
         nullptr,
         nullptr,
         instance,
@@ -120,9 +161,7 @@ int WINAPI WinMain(
     );
 
     if (!window)
-    {
         return 2;
-    }
 
     renderer = std::make_unique<WindowsRenderer>(
         WindowHandle(reinterpret_cast<std::uintptr_t>(window))

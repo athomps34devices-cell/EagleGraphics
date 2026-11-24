@@ -40,6 +40,38 @@ namespace eaglegraphics
             const Color& color
         ) override;
 
+        void draw_ellipse(
+            const Rectangle& bounds,
+            const Color& color
+        ) override;
+
+        void fill_ellipse(
+            const Rectangle& bounds,
+            const Color& color
+        ) override;
+
+        void draw_circle(
+            const Point& center,
+            Float32 radius,
+            const Color& color
+        ) override;
+
+        void fill_circle(
+            const Point& center,
+            Float32 radius,
+            const Color& color
+        ) override;
+
+        void draw_polygon(
+            std::span<const Point> points,
+            const Color& color
+        ) override;
+
+        void fill_polygon(
+            std::span<const Point> points,
+            const Color& color
+        ) override;
+
         void present() override;
 
     private:

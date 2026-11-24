@@ -1,7 +1,11 @@
 #include <cassert>
+#include <span>
 
 #include <eaglegraphics/core/graphics.h>
 #include <eaglegraphics/core/color.h>
+#include <eaglegraphics/core/point.h>
+#include <eaglegraphics/core/size.h>
+#include <eaglegraphics/core/rectangle.h>
 #include <eaglegraphics/rendering/renderer.h>
 #include <eaglegraphics/platform/platform.h>
 #include <eaglegraphics/platform/window_handle.h>
@@ -16,6 +20,12 @@ public:
     int line_calls = 0;
     int rectangle_calls = 0;
     int fill_calls = 0;
+    int ellipse_calls = 0;
+    int filled_ellipse_calls = 0;
+    int circle_calls = 0;
+    int filled_circle_calls = 0;
+    int polygon_calls = 0;
+    int filled_polygon_calls = 0;
     int present_calls = 0;
 
     void clear(const Color&) override
@@ -41,6 +51,42 @@ public:
     void fill_rectangle(const Rectangle&, const Color&) override
     {
         fill_calls++;
+    }
+
+    void draw_ellipse(const Rectangle&, const Color&) override
+    {
+        ellipse_calls++;
+    }
+
+    void fill_ellipse(const Rectangle&, const Color&) override
+    {
+        filled_ellipse_calls++;
+    }
+
+    void draw_circle(const Point&, Float32, const Color&) override
+    {
+        circle_calls++;
+    }
+
+    void fill_circle(const Point&, Float32, const Color&) override
+    {
+        filled_circle_calls++;
+    }
+
+    void draw_polygon(
+        std::span<const Point>,
+        const Color&
+    ) override
+    {
+        polygon_calls++;
+    }
+
+    void fill_polygon(
+        std::span<const Point>,
+        const Color&
+    ) override
+    {
+        filled_polygon_calls++;
     }
 
     void present() override
@@ -123,6 +169,46 @@ int main()
     renderer.draw_line(Point(0, 0), Point(100, 100), Color(0, 255, 0));
     renderer.draw_rectangle(Rectangle(10, 10, 50, 50), Color(0, 0, 255));
     renderer.fill_rectangle(Rectangle(20, 20, 30, 30), Color(255, 255, 0));
+
+    renderer.draw_ellipse(
+        Rectangle(10, 10, 100, 60),
+        Color(255, 0, 0)
+    );
+
+    renderer.fill_ellipse(
+        Rectangle(10, 10, 100, 60),
+        Color(0, 255, 0)
+    );
+
+    renderer.draw_circle(
+        Point(50, 50),
+        25.0f,
+        Color(0, 0, 255)
+    );
+
+    renderer.fill_circle(
+        Point(50, 50),
+        25.0f,
+        Color(255, 255, 0)
+    );
+
+    const Point triangle[] =
+    {
+        Point(50, 10),
+        Point(90, 90),
+        Point(10, 90)
+    };
+
+    renderer.draw_polygon(
+        std::span<const Point>(triangle),
+        Color(255, 255, 255)
+    );
+
+    renderer.fill_polygon(
+        std::span<const Point>(triangle),
+        Color(139, 92, 246)
+    );
+
     renderer.present();
 
     assert(renderer.clear_calls == 1);
@@ -130,6 +216,12 @@ int main()
     assert(renderer.line_calls == 1);
     assert(renderer.rectangle_calls == 1);
     assert(renderer.fill_calls == 1);
+    assert(renderer.ellipse_calls == 1);
+    assert(renderer.filled_ellipse_calls == 1);
+    assert(renderer.circle_calls == 1);
+    assert(renderer.filled_circle_calls == 1);
+    assert(renderer.polygon_calls == 1);
+    assert(renderer.filled_polygon_calls == 1);
     assert(renderer.present_calls == 1);
 
     constexpr Platform platform = current_platform();
