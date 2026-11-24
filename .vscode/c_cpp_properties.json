@@ -7,6 +7,7 @@
                 "${workspaceFolder}/include/eaglegraphics",
                 "${workspaceFolder}/include/eaglegraphics/core",
                 "${workspaceFolder}/include/eaglegraphics/rendering",
+                "${workspaceFolder}/include/eaglegraphics/platform",
                 "${workspaceFolder}/src/**"
             ],
             "defines": [

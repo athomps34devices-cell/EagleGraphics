@@ -3,6 +3,8 @@
 #include <eaglegraphics/core/graphics.h>
 #include <eaglegraphics/core/color.h>
 #include <eaglegraphics/rendering/renderer.h>
+#include <eaglegraphics/platform/platform.h>
+#include <eaglegraphics/platform/window_handle.h>
 
 using namespace eaglegraphics;
 
@@ -129,6 +131,23 @@ int main()
     assert(renderer.rectangle_calls == 1);
     assert(renderer.fill_calls == 1);
     assert(renderer.present_calls == 1);
+
+    constexpr Platform platform = current_platform();
+
+    assert(platform != Platform::Unknown);
+
+    constexpr WindowHandle invalid_handle;
+    constexpr WindowHandle valid_handle(12345);
+
+    assert(!invalid_handle.is_valid());
+    assert(valid_handle.is_valid());
+
+    assert(static_cast<bool>(valid_handle));
+    assert(!static_cast<bool>(invalid_handle));
+
+    assert(valid_handle.value == 12345);
+    assert(valid_handle == WindowHandle(12345));
+    assert(valid_handle != invalid_handle);
 
     return 0;
 }
