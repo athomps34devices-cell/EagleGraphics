@@ -108,6 +108,20 @@ namespace
                 );
 
                 renderer->present();
+
+                renderer->draw_text(
+                    Point(30, 330),
+                    "Hello, EagleGraphics!",
+                    eaglegraphics::Font("Arial", 22.0f, true, false),
+                    Color(255, 255, 255)
+                );
+
+                renderer->draw_text(
+                    Point(30, 360),
+                    "Different fonts, sizes, and styles.",
+                    eaglegraphics::Font("Consolas", 16.0f, false, true),
+                    Color(0, 200, 255)
+                );
             }
 
             return 0;
@@ -153,7 +167,7 @@ int WINAPI WinMain(
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         540,
-        400,
+        460,
         nullptr,
         nullptr,
         instance,

@@ -1,8 +1,10 @@
 #include <cassert>
 #include <span>
+#include <string_view>
 
 #include <eaglegraphics/core/graphics.h>
 #include <eaglegraphics/core/color.h>
+#include <eaglegraphics/core/font.h>
 #include <eaglegraphics/core/point.h>
 #include <eaglegraphics/core/size.h>
 #include <eaglegraphics/core/rectangle.h>
@@ -26,6 +28,7 @@ public:
     int filled_circle_calls = 0;
     int polygon_calls = 0;
     int filled_polygon_calls = 0;
+    int text_calls = 0;
     int present_calls = 0;
 
     void clear(const Color&) override
@@ -87,6 +90,16 @@ public:
     ) override
     {
         filled_polygon_calls++;
+    }
+
+    void draw_text(
+        const Point&,
+        std::string_view,
+        const Font&,
+        const Color&
+    ) override
+    {
+        text_calls++;
     }
 
     void present() override
@@ -162,6 +175,30 @@ int main()
     assert(red == Color(255, 0, 0));
     assert(red != transparent_blue);
 
+    Font default_font;
+
+    assert(default_font.family == "Arial");
+    assert(default_font.size == 16.0f);
+    assert(!default_font.bold);
+    assert(!default_font.italic);
+
+    Font custom_font("Consolas", 24.0f, true, false);
+
+    assert(custom_font.family == "Consolas");
+    assert(custom_font.size == 24.0f);
+    assert(custom_font.bold);
+    assert(!custom_font.italic);
+
+    Font italic_font("Times New Roman", 18.0f, false, true);
+
+    assert(italic_font.family == "Times New Roman");
+    assert(italic_font.size == 18.0f);
+    assert(!italic_font.bold);
+    assert(italic_font.italic);
+
+    assert(default_font == Font());
+    assert(default_font != custom_font);
+
     TestRenderer renderer;
 
     renderer.clear(Color(0, 0, 0));
@@ -209,6 +246,27 @@ int main()
         Color(139, 92, 246)
     );
 
+    renderer.draw_text(
+        Point(20, 20),
+        "Hello, EagleGraphics!",
+        default_font,
+        Color(255, 255, 255)
+    );
+
+    renderer.draw_text(
+        Point(20, 50),
+        "Bold Consolas",
+        custom_font,
+        Color(0, 200, 255)
+    );
+
+    renderer.draw_text(
+        Point(20, 80),
+        "Italic Times New Roman",
+        italic_font,
+        Color(255, 200, 50)
+    );
+
     renderer.present();
 
     assert(renderer.clear_calls == 1);
@@ -222,6 +280,7 @@ int main()
     assert(renderer.filled_circle_calls == 1);
     assert(renderer.polygon_calls == 1);
     assert(renderer.filled_polygon_calls == 1);
+    assert(renderer.text_calls == 3);
     assert(renderer.present_calls == 1);
 
     constexpr Platform platform = current_platform();

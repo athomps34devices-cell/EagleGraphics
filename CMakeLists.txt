@@ -74,3 +74,14 @@ if(WIN32 AND BUILD_TESTING)
             gdi32
     )
 endif()
+if(WIN32)
+    target_sources(eaglegraphics PRIVATE
+        src/platform/windows/windows_renderer.cpp
+        src/platform/windows/windows_text.cpp
+    )
+
+    target_link_libraries(eaglegraphics PRIVATE
+        user32
+        gdi32
+    )
+endif()

@@ -72,6 +72,13 @@ namespace eaglegraphics
             const Color& color
         ) override;
 
+        void draw_text(
+            const Point& position,
+            std::string_view text,
+            const Font& font,
+            const Color& color
+        ) override;
+
         void present() override;
 
     private:
