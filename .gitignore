@@ -1,11 +1,14 @@
-build/
-cmake-build-*/
-out/
+# Build directories
+/build/
+/cmake-build-*/
+/out/
 
+# Development files
 .vs/
 .vscode/ipch/
 .idea/
 
+# Compiled files
 *.obj
 *.o
 *.exe
@@ -14,7 +17,15 @@ out/
 *.a
 *.pdb
 
+# CMake generated files
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
+
+# Local SDK output
+/EagleGraphics-SDK/
+/EagleGraphics-v1.0-SDK.zip
+
+# Independent SDK test project
+/EagleGraphics-SDK-Test/
