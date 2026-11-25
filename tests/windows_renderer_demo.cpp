@@ -7,9 +7,9 @@
 #include <memory>
 #include <string>
 
-#include <eaglegraphics/platform/windows/windows_renderer.h>
+#include <eaglegraphics/integration/graphics_context.h>
 
-using eaglegraphics::WindowsRenderer;
+using eaglegraphics::GraphicsContext;
 using eaglegraphics::WindowHandle;
 using eaglegraphics::Color;
 using eaglegraphics::Point;
@@ -19,7 +19,7 @@ using eaglegraphics::Float32;
 
 namespace
 {
-    std::unique_ptr<WindowsRenderer> renderer;
+    std::unique_ptr<GraphicsContext> graphics;
 
     constexpr wchar_t WINDOW_CLASS_NAME[] = L"EagleGraphicsDemo";
 
@@ -95,7 +95,7 @@ namespace
 
     void render_scene(HWND window)
     {
-        if (!renderer || !renderer->is_initialized())
+        if (!graphics || !graphics->is_initialized())
             return;
 
         RECT client{};
@@ -109,7 +109,12 @@ namespace
         if (width <= 0 || height <= 0)
             return;
 
-        if (!renderer->resize())
+        if (!graphics->resize())
+            return;
+
+        auto* renderer = graphics->renderer();
+
+        if (!renderer)
             return;
 
         ScaleInfo info = calculate_scale(width, height);
@@ -227,7 +232,7 @@ namespace
             Color(0, 200, 255)
         );
 
-        renderer->present();
+        graphics->present();
     }
 
     LRESULT CALLBACK window_procedure(
@@ -241,7 +246,7 @@ namespace
         {
         case WM_SIZE:
         {
-            if (renderer && renderer->is_initialized() &&
+            if (graphics && graphics->is_initialized() &&
                 wparam != SIZE_MINIMIZED)
             {
                 render_scene(window);
@@ -252,14 +257,16 @@ namespace
 
         case WM_PAINT:
         {
-            PAINTSTRUCT paint{};
-
-            HDC target = BeginPaint(window, &paint);
-
-            if (target && renderer && renderer->is_initialized())
-                renderer->paint(target);
-
-            EndPaint(window, &paint);
+            if (graphics && graphics->is_initialized())
+            {
+                graphics->paint();
+            }
+            else
+            {
+                PAINTSTRUCT paint{};
+                BeginPaint(window, &paint);
+                EndPaint(window, &paint);
+            }
 
             return 0;
         }
@@ -314,13 +321,13 @@ int WINAPI WinMain(
     if (!window)
         return 2;
 
-    renderer = std::make_unique<WindowsRenderer>(
+    graphics = std::make_unique<GraphicsContext>(
         WindowHandle(reinterpret_cast<std::uintptr_t>(window))
     );
 
-    if (!renderer->initialize())
+    if (!graphics->initialize())
     {
-        renderer.reset();
+        graphics.reset();
         DestroyWindow(window);
         return 3;
     }
@@ -338,8 +345,8 @@ int WINAPI WinMain(
         DispatchMessageW(&message);
     }
 
-    renderer->shutdown();
-    renderer.reset();
+    graphics->shutdown();
+    graphics.reset();
 
     return static_cast<int>(message.wParam);
 }
