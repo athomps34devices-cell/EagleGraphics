@@ -4,6 +4,8 @@
 
 #include <vector>
 
+#include <algorithm>
+
 #include <eaglegraphics/platform/windows/windows_renderer.h>
 
 namespace eaglegraphics
@@ -168,10 +170,68 @@ namespace eaglegraphics
         return initialized_;
     }
 
-    bool WindowsRenderer::resize_buffer(
-        int width,
-        int height
-    ) noexcept
+    bool WindowsRenderer::resize() noexcept
+    {
+        if (!initialized_)
+            return false;
+
+        HWND window = get_native_window(window_);
+
+        if (!IsWindow(window))
+            return false;
+
+        RECT bounds{};
+
+        if (!GetClientRect(window, &bounds))
+            return false;
+
+        const int width = bounds.right - bounds.left;
+        const int height = bounds.bottom - bounds.top;
+
+        if (width <= 0 || height <= 0)
+            return true;
+
+        return resize_buffer(width, height);
+    }
+
+    void WindowsRenderer::paint(HDC target) noexcept
+    {
+        if (!initialized_ || !buffer_dc_ || !target)
+            return;
+
+        HWND window = get_native_window(window_);
+
+        if (!IsWindow(window))
+            return;
+
+        RECT bounds{};
+
+        if (!GetClientRect(window, &bounds))
+            return;
+
+        const int width = bounds.right - bounds.left;
+        const int height = bounds.bottom - bounds.top;
+
+        if (width <= 0 || height <= 0)
+            return;
+
+        if (!resize_buffer(width, height))
+            return;
+
+        BitBlt(
+            target,
+            0,
+            0,
+            width,
+            height,
+            buffer_dc_,
+            0,
+            0,
+            SRCCOPY
+        );
+    }
+
+    bool WindowsRenderer::resize_buffer(int width, int height) noexcept
     {
         if (!initialized_ || !buffer_dc_)
             return false;
@@ -215,22 +275,39 @@ namespace eaglegraphics
             previous_bitmap_ = old_bitmap;
 
         if (buffer_bitmap_)
+        {
+            HDC old_dc = CreateCompatibleDC(buffer_dc_);
+
+            if (old_dc)
+            {
+                HGDIOBJ previous = SelectObject(old_dc, old_bitmap);
+
+                if (previous && previous != HGDI_ERROR)
+                {
+                    BitBlt(
+                        buffer_dc_,
+                        0,
+                        0,
+                        (std::min)(width, buffer_width_),
+                        (std::min)(height, buffer_height_),
+                        old_dc,
+                        0,
+                        0,
+                        SRCCOPY
+                    );
+
+                    SelectObject(old_dc, previous);
+                }
+
+                DeleteDC(old_dc);
+            }
+
             DeleteObject(buffer_bitmap_);
+        }
 
         buffer_bitmap_ = new_bitmap;
-
         buffer_width_ = width;
         buffer_height_ = height;
-
-        RECT bounds{ 0, 0, width, height };
-
-        HBRUSH background = CreateSolidBrush(RGB(0, 0, 0));
-
-        if (background)
-        {
-            FillRect(buffer_dc_, &bounds, background);
-            DeleteObject(background);
-        }
 
         return true;
     }
@@ -621,7 +698,7 @@ namespace eaglegraphics
 
     void WindowsRenderer::present()
     {
-        if (!initialized_ || !buffer_dc_)
+        if (!initialized_)
             return;
 
         HWND window = get_native_window(window_);
@@ -629,37 +706,6 @@ namespace eaglegraphics
         if (!IsWindow(window))
             return;
 
-        RECT bounds{};
-
-        if (!GetClientRect(window, &bounds))
-            return;
-
-        int width = bounds.right - bounds.left;
-        int height = bounds.bottom - bounds.top;
-
-        if (width <= 0 || height <= 0)
-            return;
-
-        if (!resize_buffer(width, height))
-            return;
-
-        HDC window_dc = GetDC(window);
-
-        if (!window_dc)
-            return;
-
-        BitBlt(
-            window_dc,
-            0,
-            0,
-            width,
-            height,
-            buffer_dc_,
-            0,
-            0,
-            SRCCOPY
-        );
-
-        ReleaseDC(window, window_dc);
+        InvalidateRect(window, nullptr, FALSE);
     }
 }

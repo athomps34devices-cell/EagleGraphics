@@ -38,7 +38,7 @@ namespace
         float scale_x = static_cast<float>(width) / REFERENCE_WIDTH;
         float scale_y = static_cast<float>(height) / REFERENCE_HEIGHT;
 
-        float scale = std::min(scale_x, scale_y);
+        float scale = (std::min)(scale_x, scale_y);
 
         return
         {
@@ -93,6 +93,143 @@ namespace
         );
     }
 
+    void render_scene(HWND window)
+    {
+        if (!renderer || !renderer->is_initialized())
+            return;
+
+        RECT client{};
+
+        if (!GetClientRect(window, &client))
+            return;
+
+        int width = client.right - client.left;
+        int height = client.bottom - client.top;
+
+        if (width <= 0 || height <= 0)
+            return;
+
+        if (!renderer->resize())
+            return;
+
+        ScaleInfo info = calculate_scale(width, height);
+
+        const std::wstring title =
+            L"EagleGraphics - Scale: " +
+            std::to_wstring(info.scale) +
+            L" | Size: " +
+            std::to_wstring(width) +
+            L"x" +
+            std::to_wstring(height);
+
+        SetWindowTextW(window, title.c_str());
+
+        renderer->clear(Color(18, 22, 35));
+
+        renderer->fill_rectangle(
+            scale_rectangle(
+                GraphicsRectangle(Point(30, 30), Size(130, 80)),
+                info
+            ),
+            Color(139, 92, 246)
+        );
+
+        renderer->draw_rectangle(
+            scale_rectangle(
+                GraphicsRectangle(Point(190, 30), Size(130, 80)),
+                info
+            ),
+            Color(0, 200, 255)
+        );
+
+        renderer->draw_line(
+            scale_point(Point(30, 140), info),
+            scale_point(Point(450, 140), info),
+            Color(255, 255, 255)
+        );
+
+        renderer->draw_pixel(
+            scale_point(Point(240, 170), info),
+            Color(255, 80, 80)
+        );
+
+        renderer->fill_ellipse(
+            scale_rectangle(
+                GraphicsRectangle(Point(30, 180), Size(100, 65)),
+                info
+            ),
+            Color(40, 200, 120)
+        );
+
+        renderer->draw_ellipse(
+            scale_rectangle(
+                GraphicsRectangle(Point(160, 180), Size(100, 65)),
+                info
+            ),
+            Color(255, 200, 50)
+        );
+
+        renderer->fill_circle(
+            scale_point(Point(340, 215), info),
+            scale_radius(35.0f, info),
+            Color(255, 80, 120)
+        );
+
+        renderer->draw_circle(
+            scale_point(Point(440, 215), info),
+            scale_radius(35.0f, info),
+            Color(0, 200, 255)
+        );
+
+        const Point triangle[] =
+        {
+            scale_point(Point(30, 290), info),
+            scale_point(Point(100, 240), info),
+            scale_point(Point(170, 290), info)
+        };
+
+        renderer->fill_polygon(
+            triangle,
+            Color(139, 92, 246)
+        );
+
+        const Point polygon[] =
+        {
+            scale_point(Point(230, 245), info),
+            scale_point(Point(290, 245), info),
+            scale_point(Point(320, 285), info),
+            scale_point(Point(260, 315), info),
+            scale_point(Point(210, 285), info)
+        };
+
+        renderer->draw_polygon(
+            polygon,
+            Color(255, 255, 255)
+        );
+
+        renderer->draw_text(
+            scale_point(Point(30, 330), info),
+            "Hello, EagleGraphics!",
+            scale_font(
+                eaglegraphics::Font("Arial", 22.0f, true, false),
+                info
+            ),
+            Color(255, 255, 255)
+        );
+
+        renderer->draw_text(
+            scale_point(Point(30, 360), info),
+            "Different fonts, sizes, and styles.",
+            scale_font(
+                eaglegraphics::Font("Consolas", 16.0f, false, true),
+                info
+            ),
+            Color(0, 200, 255)
+        );
+
+        renderer->present();
+    }
+
     LRESULT CALLBACK window_procedure(
         HWND window,
         UINT message,
@@ -104,10 +241,10 @@ namespace
         {
         case WM_SIZE:
         {
-            if (renderer && renderer->is_initialized())
+            if (renderer && renderer->is_initialized() &&
+                wparam != SIZE_MINIMIZED)
             {
-                renderer->present();
-                InvalidateRect(window, nullptr, FALSE);
+                render_scene(window);
             }
 
             return 0;
@@ -115,138 +252,14 @@ namespace
 
         case WM_PAINT:
         {
-            PAINTSTRUCT paint;
-            BeginPaint(window, &paint);
+            PAINTSTRUCT paint{};
+
+            HDC target = BeginPaint(window, &paint);
+
+            if (target && renderer && renderer->is_initialized())
+                renderer->paint(target);
+
             EndPaint(window, &paint);
-
-            if (renderer && renderer->is_initialized())
-            {
-                RECT client{};
-                GetClientRect(window, &client);
-
-                int width = client.right - client.left;
-                int height = client.bottom - client.top;
-
-                if (width <= 0 || height <= 0)
-                    return 0;
-
-                ScaleInfo info = calculate_scale(width, height);
-
-                const std::wstring title =
-                    L"EagleGraphics - Scale: " +
-                    std::to_wstring(info.scale) +
-                    L" | Size: " +
-                    std::to_wstring(width) +
-                    L"x" +
-                    std::to_wstring(height);
-
-                SetWindowTextW(window, title.c_str());
-
-                renderer->clear(Color(18, 22, 35));
-
-                renderer->fill_rectangle(
-                    scale_rectangle(
-                        GraphicsRectangle(Point(30, 30), Size(130, 80)),
-                        info
-                    ),
-                    Color(139, 92, 246)
-                );
-
-                renderer->draw_rectangle(
-                    scale_rectangle(
-                        GraphicsRectangle(Point(190, 30), Size(130, 80)),
-                        info
-                    ),
-                    Color(0, 200, 255)
-                );
-
-                renderer->draw_line(
-                    scale_point(Point(30, 140), info),
-                    scale_point(Point(450, 140), info),
-                    Color(255, 255, 255)
-                );
-
-                renderer->draw_pixel(
-                    scale_point(Point(240, 170), info),
-                    Color(255, 80, 80)
-                );
-
-                renderer->fill_ellipse(
-                    scale_rectangle(
-                        GraphicsRectangle(Point(30, 180), Size(100, 65)),
-                        info
-                    ),
-                    Color(40, 200, 120)
-                );
-
-                renderer->draw_ellipse(
-                    scale_rectangle(
-                        GraphicsRectangle(Point(160, 180), Size(100, 65)),
-                        info
-                    ),
-                    Color(255, 200, 50)
-                );
-
-                renderer->fill_circle(
-                    scale_point(Point(340, 215), info),
-                    scale_radius(35.0f, info),
-                    Color(255, 80, 120)
-                );
-
-                renderer->draw_circle(
-                    scale_point(Point(440, 215), info),
-                    scale_radius(35.0f, info),
-                    Color(0, 200, 255)
-                );
-
-                const Point triangle[] =
-                {
-                    scale_point(Point(30, 290), info),
-                    scale_point(Point(100, 240), info),
-                    scale_point(Point(170, 290), info)
-                };
-
-                renderer->fill_polygon(
-                    triangle,
-                    Color(139, 92, 246)
-                );
-
-                const Point polygon[] =
-                {
-                    scale_point(Point(230, 245), info),
-                    scale_point(Point(290, 245), info),
-                    scale_point(Point(320, 285), info),
-                    scale_point(Point(260, 315), info),
-                    scale_point(Point(210, 285), info)
-                };
-
-                renderer->draw_polygon(
-                    polygon,
-                    Color(255, 255, 255)
-                );
-
-                renderer->draw_text(
-                    scale_point(Point(30, 330), info),
-                    "Hello, EagleGraphics!",
-                    scale_font(
-                        eaglegraphics::Font("Arial", 22.0f, true, false),
-                        info
-                    ),
-                    Color(255, 255, 255)
-                );
-
-                renderer->draw_text(
-                    scale_point(Point(30, 360), info),
-                    "Different fonts, sizes, and styles.",
-                    scale_font(
-                        eaglegraphics::Font("Consolas", 16.0f, false, true),
-                        info
-                    ),
-                    Color(0, 200, 255)
-                );
-
-                renderer->present();
-            }
 
             return 0;
         }
@@ -307,9 +320,12 @@ int WINAPI WinMain(
 
     if (!renderer->initialize())
     {
+        renderer.reset();
         DestroyWindow(window);
         return 3;
     }
+
+    render_scene(window);
 
     ShowWindow(window, show_command);
     UpdateWindow(window);

@@ -30,6 +30,10 @@ namespace eaglegraphics
 
         bool is_initialized() const noexcept;
 
+        bool resize() noexcept;
+
+        void paint(HDC target) noexcept;
+
         void clear(const Color& color) override;
 
         void draw_pixel(
