@@ -1,5 +1,18 @@
 #pragma once
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+#include <windows.h>
+
+#include <span>
+#include <string_view>
+
 #include <eaglegraphics/platform/window_handle.h>
 #include <eaglegraphics/rendering/renderer.h>
 
@@ -82,7 +95,18 @@ namespace eaglegraphics
         void present() override;
 
     private:
+        bool resize_buffer(int width, int height) noexcept;
+        void release_buffer() noexcept;
+
         WindowHandle window_;
+
+        HDC buffer_dc_ = nullptr;
+        HBITMAP buffer_bitmap_ = nullptr;
+        HGDIOBJ previous_bitmap_ = nullptr;
+
+        int buffer_width_ = 0;
+        int buffer_height_ = 0;
+
         bool initialized_ = false;
     };
 }

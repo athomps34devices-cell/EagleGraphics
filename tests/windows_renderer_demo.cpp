@@ -2,8 +2,10 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 #include <eaglegraphics/platform/windows/windows_renderer.h>
 
@@ -12,12 +14,84 @@ using eaglegraphics::WindowHandle;
 using eaglegraphics::Color;
 using eaglegraphics::Point;
 using eaglegraphics::Size;
+using GraphicsRectangle = eaglegraphics::Rectangle;
+using eaglegraphics::Float32;
 
 namespace
 {
     std::unique_ptr<WindowsRenderer> renderer;
 
     constexpr wchar_t WINDOW_CLASS_NAME[] = L"EagleGraphicsDemo";
+
+    constexpr float REFERENCE_WIDTH = 540.0f;
+    constexpr float REFERENCE_HEIGHT = 460.0f;
+
+    struct ScaleInfo
+    {
+        float scale;
+        float offset_x;
+        float offset_y;
+    };
+
+    ScaleInfo calculate_scale(int width, int height)
+    {
+        float scale_x = static_cast<float>(width) / REFERENCE_WIDTH;
+        float scale_y = static_cast<float>(height) / REFERENCE_HEIGHT;
+
+        float scale = std::min(scale_x, scale_y);
+
+        return
+        {
+            scale,
+            (static_cast<float>(width) - REFERENCE_WIDTH * scale) / 2.0f,
+            (static_cast<float>(height) - REFERENCE_HEIGHT * scale) / 2.0f
+        };
+    }
+
+    Point scale_point(const Point& point, const ScaleInfo& info)
+    {
+        return Point(
+            static_cast<int>(point.x * info.scale + info.offset_x),
+            static_cast<int>(point.y * info.scale + info.offset_y)
+        );
+    }
+
+    Size scale_size(const Size& size, const ScaleInfo& info)
+    {
+        return Size(
+            static_cast<int>(size.width * info.scale),
+            static_cast<int>(size.height * info.scale)
+        );
+    }
+
+    GraphicsRectangle scale_rectangle(
+        const GraphicsRectangle& rectangle,
+        const ScaleInfo& info
+    )
+    {
+        return GraphicsRectangle(
+            scale_point(rectangle.position, info),
+            scale_size(rectangle.size, info)
+        );
+    }
+
+    Float32 scale_radius(Float32 radius, const ScaleInfo& info)
+    {
+        return radius * info.scale;
+    }
+
+    eaglegraphics::Font scale_font(
+        const eaglegraphics::Font& font,
+        const ScaleInfo& info
+    )
+    {
+        return eaglegraphics::Font(
+            font.family,
+            font.size * info.scale,
+            font.bold,
+            font.italic
+        );
+    }
 
     LRESULT CALLBACK window_procedure(
         HWND window,
@@ -28,6 +102,17 @@ namespace
     {
         switch (message)
         {
+        case WM_SIZE:
+        {
+            if (renderer && renderer->is_initialized())
+            {
+                renderer->present();
+                InvalidateRect(window, nullptr, FALSE);
+            }
+
+            return 0;
+        }
+
         case WM_PAINT:
         {
             PAINTSTRUCT paint;
@@ -36,56 +121,89 @@ namespace
 
             if (renderer && renderer->is_initialized())
             {
+                RECT client{};
+                GetClientRect(window, &client);
+
+                int width = client.right - client.left;
+                int height = client.bottom - client.top;
+
+                if (width <= 0 || height <= 0)
+                    return 0;
+
+                ScaleInfo info = calculate_scale(width, height);
+
+                const std::wstring title =
+                    L"EagleGraphics - Scale: " +
+                    std::to_wstring(info.scale) +
+                    L" | Size: " +
+                    std::to_wstring(width) +
+                    L"x" +
+                    std::to_wstring(height);
+
+                SetWindowTextW(window, title.c_str());
+
                 renderer->clear(Color(18, 22, 35));
 
                 renderer->fill_rectangle(
-                    eaglegraphics::Rectangle(Point(30, 30), Size(130, 80)),
+                    scale_rectangle(
+                        GraphicsRectangle(Point(30, 30), Size(130, 80)),
+                        info
+                    ),
                     Color(139, 92, 246)
                 );
 
                 renderer->draw_rectangle(
-                    eaglegraphics::Rectangle(Point(190, 30), Size(130, 80)),
+                    scale_rectangle(
+                        GraphicsRectangle(Point(190, 30), Size(130, 80)),
+                        info
+                    ),
                     Color(0, 200, 255)
                 );
 
                 renderer->draw_line(
-                    Point(30, 140),
-                    Point(450, 140),
+                    scale_point(Point(30, 140), info),
+                    scale_point(Point(450, 140), info),
                     Color(255, 255, 255)
                 );
 
                 renderer->draw_pixel(
-                    Point(240, 170),
+                    scale_point(Point(240, 170), info),
                     Color(255, 80, 80)
                 );
 
                 renderer->fill_ellipse(
-                    eaglegraphics::Rectangle(Point(30, 180), Size(100, 65)),
+                    scale_rectangle(
+                        GraphicsRectangle(Point(30, 180), Size(100, 65)),
+                        info
+                    ),
                     Color(40, 200, 120)
                 );
 
                 renderer->draw_ellipse(
-                    eaglegraphics::Rectangle(Point(160, 180), Size(100, 65)),
+                    scale_rectangle(
+                        GraphicsRectangle(Point(160, 180), Size(100, 65)),
+                        info
+                    ),
                     Color(255, 200, 50)
                 );
 
                 renderer->fill_circle(
-                    Point(340, 215),
-                    35.0f,
+                    scale_point(Point(340, 215), info),
+                    scale_radius(35.0f, info),
                     Color(255, 80, 120)
                 );
 
                 renderer->draw_circle(
-                    Point(440, 215),
-                    35.0f,
+                    scale_point(Point(440, 215), info),
+                    scale_radius(35.0f, info),
                     Color(0, 200, 255)
                 );
 
                 const Point triangle[] =
                 {
-                    Point(30, 290),
-                    Point(100, 240),
-                    Point(170, 290)
+                    scale_point(Point(30, 290), info),
+                    scale_point(Point(100, 240), info),
+                    scale_point(Point(170, 290), info)
                 };
 
                 renderer->fill_polygon(
@@ -95,11 +213,11 @@ namespace
 
                 const Point polygon[] =
                 {
-                    Point(230, 245),
-                    Point(290, 245),
-                    Point(320, 285),
-                    Point(260, 315),
-                    Point(210, 285)
+                    scale_point(Point(230, 245), info),
+                    scale_point(Point(290, 245), info),
+                    scale_point(Point(320, 285), info),
+                    scale_point(Point(260, 315), info),
+                    scale_point(Point(210, 285), info)
                 };
 
                 renderer->draw_polygon(
@@ -107,21 +225,27 @@ namespace
                     Color(255, 255, 255)
                 );
 
-                renderer->present();
-
                 renderer->draw_text(
-                    Point(30, 330),
+                    scale_point(Point(30, 330), info),
                     "Hello, EagleGraphics!",
-                    eaglegraphics::Font("Arial", 22.0f, true, false),
+                    scale_font(
+                        eaglegraphics::Font("Arial", 22.0f, true, false),
+                        info
+                    ),
                     Color(255, 255, 255)
                 );
 
                 renderer->draw_text(
-                    Point(30, 360),
+                    scale_point(Point(30, 360), info),
                     "Different fonts, sizes, and styles.",
-                    eaglegraphics::Font("Consolas", 16.0f, false, true),
+                    scale_font(
+                        eaglegraphics::Font("Consolas", 16.0f, false, true),
+                        info
+                    ),
                     Color(0, 200, 255)
                 );
+
+                renderer->present();
             }
 
             return 0;

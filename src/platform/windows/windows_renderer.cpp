@@ -3,7 +3,6 @@
 #include <windows.h>
 
 #include <vector>
-#include <cstdint>
 
 #include <eaglegraphics/platform/windows/windows_renderer.h>
 
@@ -42,7 +41,7 @@ namespace eaglegraphics
         }
 
         bool create_pen_and_brush(
-            HDC device_context,
+            HDC dc,
             const Color& color,
             HPEN& pen,
             HBRUSH& brush,
@@ -64,22 +63,37 @@ namespace eaglegraphics
                 return false;
             }
 
-            previous_pen = SelectObject(device_context, pen);
-            previous_brush = SelectObject(device_context, brush);
+            previous_pen = SelectObject(dc, pen);
+            previous_brush = SelectObject(dc, brush);
+
+            if (!previous_pen || previous_pen == HGDI_ERROR ||
+                !previous_brush || previous_brush == HGDI_ERROR)
+            {
+                if (previous_pen && previous_pen != HGDI_ERROR)
+                    SelectObject(dc, previous_pen);
+
+                if (previous_brush && previous_brush != HGDI_ERROR)
+                    SelectObject(dc, previous_brush);
+
+                DeleteObject(brush);
+                DeleteObject(pen);
+
+                return false;
+            }
 
             return true;
         }
 
         void restore_pen_and_brush(
-            HDC device_context,
+            HDC dc,
             HPEN pen,
             HBRUSH brush,
             HGDIOBJ previous_pen,
             HGDIOBJ previous_brush
         )
         {
-            SelectObject(device_context, previous_brush);
-            SelectObject(device_context, previous_pen);
+            SelectObject(dc, previous_brush);
+            SelectObject(dc, previous_pen);
 
             DeleteObject(brush);
             DeleteObject(pen);
@@ -98,18 +112,54 @@ namespace eaglegraphics
 
     bool WindowsRenderer::initialize() noexcept
     {
+        if (initialized_)
+            return true;
+
         if (!window_.is_valid())
             return false;
 
-        if (!IsWindow(get_native_window(window_)))
+        HWND window = get_native_window(window_);
+
+        if (!IsWindow(window))
+            return false;
+
+        RECT bounds{};
+
+        if (!GetClientRect(window, &bounds))
+            return false;
+
+        HDC window_dc = GetDC(window);
+
+        if (!window_dc)
+            return false;
+
+        buffer_dc_ = CreateCompatibleDC(window_dc);
+
+        ReleaseDC(window, window_dc);
+
+        if (!buffer_dc_)
             return false;
 
         initialized_ = true;
+
+        const int width = bounds.right - bounds.left;
+        const int height = bounds.bottom - bounds.top;
+
+        if (!resize_buffer(
+            width > 0 ? width : 1,
+            height > 0 ? height : 1
+        ))
+        {
+            shutdown();
+            return false;
+        }
+
         return true;
     }
 
     void WindowsRenderer::shutdown() noexcept
     {
+        release_buffer();
         initialized_ = false;
     }
 
@@ -118,31 +168,117 @@ namespace eaglegraphics
         return initialized_;
     }
 
-    void WindowsRenderer::clear(const Color& color)
+    bool WindowsRenderer::resize_buffer(
+        int width,
+        int height
+    ) noexcept
     {
-        if (!initialized_)
-            return;
+        if (!initialized_ || !buffer_dc_)
+            return false;
+
+        if (width <= 0 || height <= 0)
+            return false;
+
+        if (width == buffer_width_ && height == buffer_height_)
+            return true;
 
         HWND window = get_native_window(window_);
-        HDC dc = GetDC(window);
 
-        if (!dc)
-            return;
+        if (!IsWindow(window))
+            return false;
 
-        RECT bounds;
+        HDC window_dc = GetDC(window);
 
-        if (GetClientRect(window, &bounds))
+        if (!window_dc)
+            return false;
+
+        HBITMAP new_bitmap = CreateCompatibleBitmap(
+            window_dc,
+            width,
+            height
+        );
+
+        ReleaseDC(window, window_dc);
+
+        if (!new_bitmap)
+            return false;
+
+        HGDIOBJ old_bitmap = SelectObject(buffer_dc_, new_bitmap);
+
+        if (!old_bitmap || old_bitmap == HGDI_ERROR)
         {
-            HBRUSH brush = CreateSolidBrush(to_native_color(color));
-
-            if (brush)
-            {
-                FillRect(dc, &bounds, brush);
-                DeleteObject(brush);
-            }
+            DeleteObject(new_bitmap);
+            return false;
         }
 
-        ReleaseDC(window, dc);
+        if (!previous_bitmap_)
+            previous_bitmap_ = old_bitmap;
+
+        if (buffer_bitmap_)
+            DeleteObject(buffer_bitmap_);
+
+        buffer_bitmap_ = new_bitmap;
+
+        buffer_width_ = width;
+        buffer_height_ = height;
+
+        RECT bounds{ 0, 0, width, height };
+
+        HBRUSH background = CreateSolidBrush(RGB(0, 0, 0));
+
+        if (background)
+        {
+            FillRect(buffer_dc_, &bounds, background);
+            DeleteObject(background);
+        }
+
+        return true;
+    }
+
+    void WindowsRenderer::release_buffer() noexcept
+    {
+        if (buffer_dc_)
+        {
+            if (previous_bitmap_)
+            {
+                SelectObject(buffer_dc_, previous_bitmap_);
+                previous_bitmap_ = nullptr;
+            }
+
+            if (buffer_bitmap_)
+            {
+                DeleteObject(buffer_bitmap_);
+                buffer_bitmap_ = nullptr;
+            }
+
+            DeleteDC(buffer_dc_);
+            buffer_dc_ = nullptr;
+        }
+
+        buffer_width_ = 0;
+        buffer_height_ = 0;
+    }
+
+    void WindowsRenderer::clear(const Color& color)
+    {
+        if (!initialized_ || !buffer_dc_)
+            return;
+
+        RECT bounds
+        {
+            0,
+            0,
+            buffer_width_,
+            buffer_height_
+        };
+
+        HBRUSH brush = CreateSolidBrush(to_native_color(color));
+
+        if (brush)
+        {
+            FillRect(buffer_dc_, &bounds, brush);
+            DeleteObject(brush);
+        }
     }
 
     void WindowsRenderer::draw_pixel(
@@ -150,22 +286,15 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (!initialized_)
-            return;
-
-        HDC dc = GetDC(get_native_window(window_));
-
-        if (!dc)
+        if (!initialized_ || !buffer_dc_)
             return;
 
         SetPixelV(
-            dc,
+            buffer_dc_,
             static_cast<int>(position.x),
             static_cast<int>(position.y),
             to_native_color(color)
         );
-
-        ReleaseDC(get_native_window(window_), dc);
     }
 
     void WindowsRenderer::draw_line(
@@ -174,38 +303,37 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (!initialized_)
-            return;
-
-        HDC dc = GetDC(get_native_window(window_));
-
-        if (!dc)
+        if (!initialized_ || !buffer_dc_)
             return;
 
         HPEN pen = CreatePen(PS_SOLID, 1, to_native_color(color));
 
-        if (pen)
+        if (!pen)
+            return;
+
+        HGDIOBJ previous = SelectObject(buffer_dc_, pen);
+
+        if (!previous || previous == HGDI_ERROR)
         {
-            HGDIOBJ previous = SelectObject(dc, pen);
-
-            MoveToEx(
-                dc,
-                static_cast<int>(start.x),
-                static_cast<int>(start.y),
-                nullptr
-            );
-
-            LineTo(
-                dc,
-                static_cast<int>(end.x),
-                static_cast<int>(end.y)
-            );
-
-            SelectObject(dc, previous);
             DeleteObject(pen);
+            return;
         }
 
-        ReleaseDC(get_native_window(window_), dc);
+        MoveToEx(
+            buffer_dc_,
+            static_cast<int>(start.x),
+            static_cast<int>(start.y),
+            nullptr
+        );
+
+        LineTo(
+            buffer_dc_,
+            static_cast<int>(end.x),
+            static_cast<int>(end.y)
+        );
+
+        SelectObject(buffer_dc_, previous);
+        DeleteObject(pen);
     }
 
     void WindowsRenderer::draw_rectangle(
@@ -213,39 +341,45 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (!initialized_)
-            return;
-
-        HDC dc = GetDC(get_native_window(window_));
-
-        if (!dc)
+        if (!initialized_ || !buffer_dc_)
             return;
 
         HPEN pen = CreatePen(PS_SOLID, 1, to_native_color(color));
 
-        if (pen)
+        if (!pen)
+            return;
+
+        HGDIOBJ previous_pen = SelectObject(buffer_dc_, pen);
+        HGDIOBJ previous_brush = SelectObject(
+            buffer_dc_,
+            GetStockObject(NULL_BRUSH)
+        );
+
+        if (!previous_pen || previous_pen == HGDI_ERROR ||
+            !previous_brush || previous_brush == HGDI_ERROR)
         {
-            HGDIOBJ previous_pen = SelectObject(dc, pen);
-            HGDIOBJ previous_brush = SelectObject(
-                dc,
-                GetStockObject(NULL_BRUSH)
-            );
+            if (previous_pen && previous_pen != HGDI_ERROR)
+                SelectObject(buffer_dc_, previous_pen);
 
-            ::Rectangle(
-                dc,
-                static_cast<int>(rectangle.left()),
-                static_cast<int>(rectangle.top()),
-                static_cast<int>(rectangle.right()),
-                static_cast<int>(rectangle.bottom())
-            );
-
-            SelectObject(dc, previous_brush);
-            SelectObject(dc, previous_pen);
+            if (previous_brush && previous_brush != HGDI_ERROR)
+                SelectObject(buffer_dc_, previous_brush);
 
             DeleteObject(pen);
+            return;
         }
 
-        ReleaseDC(get_native_window(window_), dc);
+        ::Rectangle(
+            buffer_dc_,
+            static_cast<int>(rectangle.left()),
+            static_cast<int>(rectangle.top()),
+            static_cast<int>(rectangle.right()),
+            static_cast<int>(rectangle.bottom())
+        );
+
+        SelectObject(buffer_dc_, previous_brush);
+        SelectObject(buffer_dc_, previous_pen);
+
+        DeleteObject(pen);
     }
 
     void WindowsRenderer::fill_rectangle(
@@ -253,24 +387,18 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (!initialized_)
-            return;
-
-        HDC dc = GetDC(get_native_window(window_));
-
-        if (!dc)
+        if (!initialized_ || !buffer_dc_)
             return;
 
         RECT bounds = to_native_rectangle(rectangle);
+
         HBRUSH brush = CreateSolidBrush(to_native_color(color));
 
         if (brush)
         {
-            FillRect(dc, &bounds, brush);
+            FillRect(buffer_dc_, &bounds, brush);
             DeleteObject(brush);
         }
-
-        ReleaseDC(get_native_window(window_), dc);
     }
 
     void WindowsRenderer::draw_ellipse(
@@ -278,41 +406,47 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (!initialized_)
-            return;
-
-        HDC dc = GetDC(get_native_window(window_));
-
-        if (!dc)
+        if (!initialized_ || !buffer_dc_)
             return;
 
         HPEN pen = CreatePen(PS_SOLID, 1, to_native_color(color));
 
-        if (pen)
+        if (!pen)
+            return;
+
+        HGDIOBJ previous_pen = SelectObject(buffer_dc_, pen);
+        HGDIOBJ previous_brush = SelectObject(
+            buffer_dc_,
+            GetStockObject(NULL_BRUSH)
+        );
+
+        if (!previous_pen || previous_pen == HGDI_ERROR ||
+            !previous_brush || previous_brush == HGDI_ERROR)
         {
-            HGDIOBJ previous_pen = SelectObject(dc, pen);
-            HGDIOBJ previous_brush = SelectObject(
-                dc,
-                GetStockObject(NULL_BRUSH)
-            );
+            if (previous_pen && previous_pen != HGDI_ERROR)
+                SelectObject(buffer_dc_, previous_pen);
 
-            RECT native_bounds = to_native_rectangle(bounds);
-
-            ::Ellipse(
-                dc,
-                native_bounds.left,
-                native_bounds.top,
-                native_bounds.right,
-                native_bounds.bottom
-            );
-
-            SelectObject(dc, previous_brush);
-            SelectObject(dc, previous_pen);
+            if (previous_brush && previous_brush != HGDI_ERROR)
+                SelectObject(buffer_dc_, previous_brush);
 
             DeleteObject(pen);
+            return;
         }
 
-        ReleaseDC(get_native_window(window_), dc);
+        RECT native_bounds = to_native_rectangle(bounds);
+
+        ::Ellipse(
+            buffer_dc_,
+            native_bounds.left,
+            native_bounds.top,
+            native_bounds.right,
+            native_bounds.bottom
+        );
+
+        SelectObject(buffer_dc_, previous_brush);
+        SelectObject(buffer_dc_, previous_pen);
+
+        DeleteObject(pen);
     }
 
     void WindowsRenderer::fill_ellipse(
@@ -320,12 +454,7 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (!initialized_)
-            return;
-
-        HDC dc = GetDC(get_native_window(window_));
-
-        if (!dc)
+        if (!initialized_ || !buffer_dc_)
             return;
 
         HPEN pen;
@@ -333,35 +462,33 @@ namespace eaglegraphics
         HGDIOBJ previous_pen;
         HGDIOBJ previous_brush;
 
-        if (create_pen_and_brush(
-            dc,
+        if (!create_pen_and_brush(
+            buffer_dc_,
             color,
             pen,
             brush,
             previous_pen,
             previous_brush
         ))
-        {
-            RECT native_bounds = to_native_rectangle(bounds);
+            return;
 
-            ::Ellipse(
-                dc,
-                native_bounds.left,
-                native_bounds.top,
-                native_bounds.right,
-                native_bounds.bottom
-            );
+        RECT native_bounds = to_native_rectangle(bounds);
 
-            restore_pen_and_brush(
-                dc,
-                pen,
-                brush,
-                previous_pen,
-                previous_brush
-            );
-        }
+        ::Ellipse(
+            buffer_dc_,
+            native_bounds.left,
+            native_bounds.top,
+            native_bounds.right,
+            native_bounds.bottom
+        );
 
-        ReleaseDC(get_native_window(window_), dc);
+        restore_pen_and_brush(
+            buffer_dc_,
+            pen,
+            brush,
+            previous_pen,
+            previous_brush
+        );
     }
 
     void WindowsRenderer::draw_circle(
@@ -370,12 +497,12 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (radius < 0)
+        if (radius < 0.0f)
             return;
 
         Rectangle bounds(
             Point(center.x - radius, center.y - radius),
-            Size(radius * 2, radius * 2)
+            Size(radius * 2.0f, radius * 2.0f)
         );
 
         draw_ellipse(bounds, color);
@@ -387,12 +514,12 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (radius < 0)
+        if (radius < 0.0f)
             return;
 
         Rectangle bounds(
             Point(center.x - radius, center.y - radius),
-            Size(radius * 2, radius * 2)
+            Size(radius * 2.0f, radius * 2.0f)
         );
 
         fill_ellipse(bounds, color);
@@ -403,12 +530,7 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (!initialized_ || points.size() < 3)
-            return;
-
-        HDC dc = GetDC(get_native_window(window_));
-
-        if (!dc)
+        if (!initialized_ || !buffer_dc_ || points.size() < 3)
             return;
 
         std::vector<POINT> native_points;
@@ -419,27 +541,38 @@ namespace eaglegraphics
 
         HPEN pen = CreatePen(PS_SOLID, 1, to_native_color(color));
 
-        if (pen)
+        if (!pen)
+            return;
+
+        HGDIOBJ previous_pen = SelectObject(buffer_dc_, pen);
+        HGDIOBJ previous_brush = SelectObject(
+            buffer_dc_,
+            GetStockObject(NULL_BRUSH)
+        );
+
+        if (!previous_pen || previous_pen == HGDI_ERROR ||
+            !previous_brush || previous_brush == HGDI_ERROR)
         {
-            HGDIOBJ previous_pen = SelectObject(dc, pen);
-            HGDIOBJ previous_brush = SelectObject(
-                dc,
-                GetStockObject(NULL_BRUSH)
-            );
+            if (previous_pen && previous_pen != HGDI_ERROR)
+                SelectObject(buffer_dc_, previous_pen);
 
-            ::Polygon(
-                dc,
-                native_points.data(),
-                static_cast<int>(native_points.size())
-            );
-
-            SelectObject(dc, previous_brush);
-            SelectObject(dc, previous_pen);
+            if (previous_brush && previous_brush != HGDI_ERROR)
+                SelectObject(buffer_dc_, previous_brush);
 
             DeleteObject(pen);
+            return;
         }
 
-        ReleaseDC(get_native_window(window_), dc);
+        ::Polygon(
+            buffer_dc_,
+            native_points.data(),
+            static_cast<int>(native_points.size())
+        );
+
+        SelectObject(buffer_dc_, previous_brush);
+        SelectObject(buffer_dc_, previous_pen);
+
+        DeleteObject(pen);
     }
 
     void WindowsRenderer::fill_polygon(
@@ -447,12 +580,7 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (!initialized_ || points.size() < 3)
-            return;
-
-        HDC dc = GetDC(get_native_window(window_));
-
-        if (!dc)
+        if (!initialized_ || !buffer_dc_ || points.size() < 3)
             return;
 
         std::vector<POINT> native_points;
@@ -466,36 +594,72 @@ namespace eaglegraphics
         HGDIOBJ previous_pen;
         HGDIOBJ previous_brush;
 
-        if (create_pen_and_brush(
-            dc,
+        if (!create_pen_and_brush(
+            buffer_dc_,
             color,
             pen,
             brush,
             previous_pen,
             previous_brush
         ))
-        {
-            ::Polygon(
-                dc,
-                native_points.data(),
-                static_cast<int>(native_points.size())
-            );
+            return;
 
-            restore_pen_and_brush(
-                dc,
-                pen,
-                brush,
-                previous_pen,
-                previous_brush
-            );
-        }
+        ::Polygon(
+            buffer_dc_,
+            native_points.data(),
+            static_cast<int>(native_points.size())
+        );
 
-        ReleaseDC(get_native_window(window_), dc);
+        restore_pen_and_brush(
+            buffer_dc_,
+            pen,
+            brush,
+            previous_pen,
+            previous_brush
+        );
     }
 
     void WindowsRenderer::present()
     {
-        // GDI currently draws directly to the window.
-        // Buffered presentation will be implemented in Stage 9.
+        if (!initialized_ || !buffer_dc_)
+            return;
+
+        HWND window = get_native_window(window_);
+
+        if (!IsWindow(window))
+            return;
+
+        RECT bounds{};
+
+        if (!GetClientRect(window, &bounds))
+            return;
+
+        int width = bounds.right - bounds.left;
+        int height = bounds.bottom - bounds.top;
+
+        if (width <= 0 || height <= 0)
+            return;
+
+        if (!resize_buffer(width, height))
+            return;
+
+        HDC window_dc = GetDC(window);
+
+        if (!window_dc)
+            return;
+
+        BitBlt(
+            window_dc,
+            0,
+            0,
+            width,
+            height,
+            buffer_dc_,
+            0,
+            0,
+            SRCCOPY
+        );
+
+        ReleaseDC(window, window_dc);
     }
 }

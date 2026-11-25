@@ -16,17 +16,13 @@ namespace eaglegraphics
         const Color& color
     )
     {
-        if (!initialized_ || text.empty())
+        if (!initialized_ || !buffer_dc_ || text.empty())
             return;
 
         if (font.size <= 0.0f || font.family.empty())
             return;
 
-        HWND window = reinterpret_cast<HWND>(window_.value);
-
-        HDC dc = GetDC(window);
-
-        if (!dc)
+        if (text.size() > static_cast<std::size_t>(INT_MAX))
             return;
 
         int required_size = MultiByteToWideChar(
@@ -39,24 +35,22 @@ namespace eaglegraphics
         );
 
         if (required_size <= 0)
-        {
-            ReleaseDC(window, dc);
             return;
-        }
 
         std::wstring wide_text(
             static_cast<std::size_t>(required_size),
             L'\0'
         );
 
-        MultiByteToWideChar(
+        if (MultiByteToWideChar(
             CP_UTF8,
             MB_ERR_INVALID_CHARS,
             text.data(),
             static_cast<int>(text.size()),
             wide_text.data(),
             required_size
-        );
+        ) <= 0)
+            return;
 
         int family_size = MultiByteToWideChar(
             CP_UTF8,
@@ -68,82 +62,77 @@ namespace eaglegraphics
         );
 
         if (family_size <= 0)
-        {
-            ReleaseDC(window, dc);
             return;
-        }
 
         std::wstring wide_family(
             static_cast<std::size_t>(family_size),
             L'\0'
         );
 
-        MultiByteToWideChar(
+        if (MultiByteToWideChar(
             CP_UTF8,
             0,
             font.family.c_str(),
             -1,
             wide_family.data(),
             family_size
-        );
+        ) <= 0)
+            return;
 
         if (!wide_family.empty() && wide_family.back() == L'\0')
             wide_family.pop_back();
 
-        LOGFONTW font_settings{};
+        LOGFONTW settings{};
 
-        font_settings.lfHeight = -std::max(
+        settings.lfHeight = -std::max(
             1,
             static_cast<int>(font.size)
         );
 
-        font_settings.lfWeight = font.bold
-            ? FW_BOLD
-            : FW_NORMAL;
-
-        font_settings.lfItalic = font.italic ? TRUE : FALSE;
-
-        font_settings.lfCharSet = DEFAULT_CHARSET;
-        font_settings.lfQuality = CLEARTYPE_QUALITY;
+        settings.lfWeight = font.bold ? FW_BOLD : FW_NORMAL;
+        settings.lfItalic = font.italic ? TRUE : FALSE;
+        settings.lfCharSet = DEFAULT_CHARSET;
+        settings.lfQuality = CLEARTYPE_QUALITY;
 
         lstrcpynW(
-            font_settings.lfFaceName,
+            settings.lfFaceName,
             wide_family.c_str(),
             LF_FACESIZE
         );
 
-        HFONT native_font = CreateFontIndirectW(&font_settings);
+        HFONT native_font = CreateFontIndirectW(&settings);
 
         if (!native_font)
-        {
-            ReleaseDC(window, dc);
             return;
-        }
 
-        HGDIOBJ previous_font = SelectObject(dc, native_font);
+        HGDIOBJ previous_font = SelectObject(
+            buffer_dc_,
+            native_font
+        );
 
-        int previous_background_mode = SetBkMode(dc, TRANSPARENT);
+        int previous_background_mode = SetBkMode(
+            buffer_dc_,
+            TRANSPARENT
+        );
 
         COLORREF previous_text_color = SetTextColor(
-            dc,
+            buffer_dc_,
             RGB(color.r, color.g, color.b)
         );
 
         TextOutW(
-            dc,
+            buffer_dc_,
             static_cast<int>(position.x),
             static_cast<int>(position.y),
             wide_text.c_str(),
             static_cast<int>(wide_text.size())
         );
 
-        SetTextColor(dc, previous_text_color);
-        SetBkMode(dc, previous_background_mode);
+        SetTextColor(buffer_dc_, previous_text_color);
+        SetBkMode(buffer_dc_, previous_background_mode);
 
-        SelectObject(dc, previous_font);
+        SelectObject(buffer_dc_, previous_font);
 
         DeleteObject(native_font);
-
-        ReleaseDC(window, dc);
     }
 }
