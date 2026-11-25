@@ -12,6 +12,7 @@ include(CMakePackageConfigHelpers)
 add_library(eaglegraphics STATIC
     src/version.cpp
     src/core/graphics.cpp
+    src/integration/graphics_context.cpp
 )
 
 add_library(EagleGraphics::EagleGraphics ALIAS eaglegraphics)
