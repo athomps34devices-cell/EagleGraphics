@@ -119,4 +119,20 @@ if(WIN32 AND BUILD_TESTING)
             user32
             gdi32
     )
+
+    add_executable(eaglegraphics_windows_integration_tests
+        tests/windows_integration_tests.cpp
+    )
+
+    target_link_libraries(eaglegraphics_windows_integration_tests
+        PRIVATE
+            EagleGraphics::EagleGraphics
+            user32
+            gdi32
+    )
+
+    add_test(
+        NAME EagleGraphicsWindowsIntegrationTests
+        COMMAND eaglegraphics_windows_integration_tests
+    )
 endif()
