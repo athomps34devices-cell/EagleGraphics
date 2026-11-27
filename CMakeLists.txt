@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(EagleGraphics
-    VERSION 1.0.0
+    VERSION 1.1.0
     DESCRIPTION "A shared graphics framework for the Eagle software family"
     LANGUAGES CXX
 )

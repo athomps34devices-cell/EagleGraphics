@@ -26,6 +26,7 @@ Makefile
 # Local SDK output
 /EagleGraphics-SDK/
 /EagleGraphics-v1.0-SDK.zip
+/EagleGraphics-v1.1-SDK.zip
 
 # Independent SDK test project
 /EagleGraphics-SDK-Test/
